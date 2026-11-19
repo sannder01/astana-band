@@ -8,6 +8,8 @@ const weather = atom({ plugin: 'astana-band', key: 'weather' } as const, null)
 const limits = atom({ plugin: 'astana-band', key: 'limits' } as const, [])
 const isHidden = atom({ plugin: 'astana-band', key: 'isHidden' } as const, false)
 const frame = atom({ plugin: 'astana-band', key: 'frame' } as const, 0)
+// true while the bars show the last session's figures, before Claude's first reply
+const isStale = atom({ plugin: 'astana-band', key: 'isStale' } as const, false)
 
 // Open-Meteo: free, no key. Astana 51.17N 71.43E
 const URL =
@@ -90,15 +92,42 @@ async function fetchWeather($: EngineInterface): Promise<void> {
       at: await $.clock.now(),
     }
     await update($, weather, () => w)
+    await $.store.set('weather', w)
   } catch {
     // offline: keep the last reading
   }
 }
 
+// Fresh figures from Claude: show them and remember them for the next session.
+async function saveLimits($: EngineInterface, fresh: Limit[]): Promise<void> {
+  if (fresh.length === 0) return
+  await update($, limits, () => fresh)
+  await update($, isStale, () => false)
+  await $.store.set('limits', fresh)
+}
+
 async function refreshLimits($: EngineInterface): Promise<void> {
   const u = await $.session.usage()
-  const next: Limit[] = u.rateLimits.map(l => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt }))
-  await update($, limits, () => next)
+  const fresh: Limit[] = u.rateLimits.map(l => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt }))
+  if (fresh.length > 0) return saveLimits($, fresh)
+
+  // No reply yet in this session: show what the last session saw.
+  // A window whose reset time has passed is empty again.
+  const saved = (await $.store.get('limits')) as Limit[] | undefined
+  if (!Array.isArray(saved) || saved.length === 0) return
+  const now = await $.clock.now()
+  const shown = saved.map(l =>
+    l.resetsAt && Date.parse(l.resetsAt) <= now ? { kind: l.kind, percentUsed: 0 } : l,
+  )
+  await update($, limits, () => shown)
+  await update($, isStale, () => true)
+}
+
+async function loadWeather($: EngineInterface): Promise<void> {
+  const saved = (await $.store.get('weather')) as Weather | undefined
+  if (saved && typeof saved.temp === 'number' && (await read($, weather)) === null) {
+    await update($, weather, () => saved)
+  }
 }
 
 export const register: Register = on => {
@@ -108,6 +137,7 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)
+    await loadWeather($)
     void fetchWeather($)
     void refreshLimits($)
     weatherTimer?.cancel()
@@ -126,7 +156,7 @@ export const register: Register = on => {
 
   on('session.measure', async ($, e, next) => {
     const fresh: Limit[] = e.rateLimits.map(l => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt }))
-    await update($, limits, () => fresh)
+    await saveLimits($, fresh)
     return next(e)
   })
 
@@ -143,6 +173,7 @@ export const register: Register = on => {
     const ls = [...(await read($, limits))].sort((a, b) => (ORDER[a.kind] ?? 9) - (ORDER[b.kind] ?? 9))
     const now = await $.clock.now()
     const f = await read($, frame)
+    const stale = await read($, isStale)
 
     // Fit the band to its width so nothing wraps: first the tree goes,
     // then the bars get shorter, and on a very narrow band the weather goes.
@@ -188,7 +219,11 @@ export const register: Register = on => {
           <Text>{'█'.repeat(full)}</Text>
           <Text dimColor>{'█'.repeat(CELLS - full)}</Text>
           <Text>]</Text>
-          <Text bold>{` ${String(pct).padStart(3)}%`}</Text>
+          {stale ? (
+            <Text dimColor>{` ~${String(pct).padStart(2)}%`}</Text>
+          ) : (
+            <Text bold>{` ${String(pct).padStart(3)}%`}</Text>
+          )}
           <Text dimColor>{resetIn(l.resetsAt, now)}</Text>
         </Text>
       )

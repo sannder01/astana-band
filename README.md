@@ -8,7 +8,7 @@ A Claude Code mod: a monochrome pixel band right above the prompt box.
 
 `/astana-band` hides or shows the band.
 
-Limits show up after Claude's first reply in a session, and only on a Claude subscription.
+Limits come with Claude's replies (Claude subscription only). Until the first reply in a new session the bars show the last session's figures, dimmed with a `~`.
 
 ## Install
 

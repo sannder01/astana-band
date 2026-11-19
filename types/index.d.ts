@@ -3,6 +3,6 @@ export type Limit = { kind: string; percentUsed: number; resetsAt?: string }
 
 declare module 'claude-code' {
   interface PluginState {
-    'astana-band': { weather: Weather | null; limits: Limit[]; isHidden: boolean; frame: number }
+    'astana-band': { weather: Weather | null; limits: Limit[]; isHidden: boolean; frame: number; isStale: boolean }
   }
 }
