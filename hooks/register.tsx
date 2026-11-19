@@ -23,12 +23,12 @@ function sky(code: number): { icon: string; word: string } {
   return { icon: '!', word: 'ГРОЗА' }
 }
 
-const CELLS = 16
+const CELLS_MAX = 16
 const FILL_FRAMES = 10 // how many frames the bar takes to fill on start
 
-function bar(pct: number): [number, number] {
-  const full = Math.max(0, Math.min(CELLS, Math.round((pct / 100) * CELLS)))
-  return [full, CELLS - full]
+function bar(pct: number, cells: number): [number, number] {
+  const full = Math.max(0, Math.min(cells, Math.round((pct / 100) * cells)))
+  return [full, cells - full]
 }
 
 // Pseudo-random but stable per column, so each flake keeps its own lane.
@@ -55,9 +55,12 @@ function snow(row: number, width: number, f: number, seed: number): string {
 // The tree: pixel art from the user's picture, two pixel rows per text row.
 const TREE_W = 5
 const ROWS = 4
-const MID_W = 13
-const LEFT_W = 36
-const RIGHT_W = 24
+const MID_MAX = 13
+const LEFT_MAX = 36
+const RIGHT_MAX = 24
+const RIGHT_MIN = 19 // the weather lines' own length
+// a limit row: name (3) + [bar] (cells + 2) + percent (5) + reset time (up to 7)
+const leftNeed = (cells: number): number => cells + 17
 const SPIN = ['|', '/', '-', '\\']
 
 function resetIn(iso: string | undefined, now: number): string {
@@ -140,6 +143,29 @@ export const register: Register = on => {
     const ls = [...(await read($, limits))].sort((a, b) => (ORDER[a.kind] ?? 9) - (ORDER[b.kind] ?? 9))
     const now = await $.clock.now()
     const f = await read($, frame)
+
+    // Fit the band to its width so nothing wraps: first the tree goes,
+    // then the bars get shorter, and on a very narrow band the weather goes.
+    const avail = Math.max(20, e.props.bodyColumns - 4) // border + padding
+    let CELLS = CELLS_MAX
+    let LEFT_W = LEFT_MAX
+    let MID_W = MID_MAX
+    let RIGHT_W = RIGHT_MAX
+    if (LEFT_MAX + MID_MAX + RIGHT_MAX > avail) {
+      RIGHT_W = RIGHT_MIN
+      LEFT_W = leftNeed(CELLS)
+      MID_W = Math.min(MID_MAX, avail - LEFT_W - RIGHT_W - 2)
+      if (MID_W < TREE_W + 2) MID_W = 0
+      if (MID_W === 0 && LEFT_W + RIGHT_W + 1 > avail) {
+        CELLS = Math.max(4, avail - RIGHT_W - 1 - 17)
+        LEFT_W = leftNeed(CELLS)
+      }
+      if (LEFT_W + RIGHT_W + 1 > avail) {
+        RIGHT_W = 0
+        CELLS = Math.max(4, Math.min(CELLS_MAX, avail - 17))
+        LEFT_W = leftNeed(CELLS)
+      }
+    }
     const grow = Math.min(1, Math.max(0, (f - startFrame) / FILL_FRAMES))
     const isBlinkOff = f % 2 === 1
 
@@ -151,7 +177,7 @@ export const register: Register = on => {
           </Text>
         )
       }
-      const [full0] = bar(l.percentUsed * grow)
+      const [full0] = bar(l.percentUsed * grow, CELLS)
       const isHot = l.percentUsed >= 85 && grow >= 1
       const full = isHot && isBlinkOff ? Math.max(0, full0 - 1) : full0
       const pct = Math.round(l.percentUsed * grow)
@@ -216,8 +242,8 @@ export const register: Register = on => {
     return (
       <Box flexDirection="row" justifyContent="space-between" borderStyle="single" paddingX={1}>
         <Box flexDirection="column">{leftRows}</Box>
-        {middle}
-        <Box flexDirection="column" alignItems="flex-end">{rightRows}</Box>
+        {MID_W > 0 ? middle : null}
+        {RIGHT_W > 0 ? <Box flexDirection="column" alignItems="flex-end">{rightRows}</Box> : null}
       </Box>
     )
   })

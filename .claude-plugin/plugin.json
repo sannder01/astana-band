@@ -1,1 +1,1 @@
-{ "name": "astana-band", "version": "0.1.0", "description": "Pixel band above the prompt: Claude usage limits + Astana weather, with falling snow and a tiny tree", "license": "MIT", "types": "./types/index.d.ts" }
+{ "name": "astana-band", "version": "0.1.1", "description": "Pixel band above the prompt: Claude usage limits + Astana weather, with falling snow and a tiny tree", "license": "MIT", "types": "./types/index.d.ts" }
