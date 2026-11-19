@@ -54,7 +54,7 @@ function snow(row: number, width: number, f: number, seed: number): string {
 
 // The tree: pixel art from the user's picture, two pixel rows per text row.
 const TREE_W = 5
-const ROWS = 4
+const ROWS = 2
 const MID_MAX = 13
 const LEFT_MAX = 36
 const RIGHT_MAX = 24
@@ -198,8 +198,8 @@ export const register: Register = on => {
     const pad = Math.floor((MID_W - TREE_W) / 2)
     const midRow = (r: number) => {
       const flakes = snow(r, MID_W, f, 2)
-      const top = TREE_PIX[(r - 1) * 2] ?? []
-      const bottom = TREE_PIX[(r - 1) * 2 + 1] ?? []
+      const top = TREE_PIX[r * 2] ?? []
+      const bottom = TREE_PIX[r * 2 + 1] ?? []
       const cells = []
       for (let c = 0; c < MID_W; c++) {
         const hi = top[c - pad] ?? ''
@@ -218,7 +218,6 @@ export const register: Register = on => {
     const icon = w === null ? '' : isSnowy ? (f % 2 === 0 ? '*' : '+') : sky(w.code).icon
 
     const rightRows = [
-      <Text key="r0" mono dimColor>{snow(0, RIGHT_W, f, 3)}</Text>,
       w === null ? (
         <Text key="r1" mono dimColor>{'АСТАНА ...'.padStart(RIGHT_W)}</Text>
       ) : (
@@ -229,14 +228,11 @@ export const register: Register = on => {
       ) : (
         <Text key="r2" mono dimColor>{`${sky(w.code).word} · ${SPIN[f % 4]} ${w.wind}М/С`.padStart(RIGHT_W)}</Text>
       ),
-      <Text key="r3" mono dimColor>{snow(3, RIGHT_W, f, 4)}</Text>,
     ]
 
     const leftRows = [
-      <Text key="s0" mono dimColor>{snow(0, LEFT_W, f, 1)}</Text>,
       limitRow(ls[0], 0),
       limitRow(ls[1], 1),
-      <Text key="s3" mono dimColor>{snow(3, LEFT_W, f, 6)}</Text>,
     ]
 
     return (
