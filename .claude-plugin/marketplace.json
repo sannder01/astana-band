@@ -1,0 +1,5 @@
+{
+  "name": "astana-band",
+  "owner": { "name": "sannder01" },
+  "plugins": [{ "name": "astana-band", "source": "./" }]
+}
